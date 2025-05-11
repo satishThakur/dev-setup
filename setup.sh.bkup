@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+set -e
+
+# Detect shell profile
+detect_shell_profile() {
+  if [[ -n "$ZSH_VERSION" || -n "$ZSH_NAME" ]]; then
+    echo "$HOME/.zshrc"
+  else
+    echo "$HOME/.bashrc"
+  fi
+}
+
+# Append once to shell profile
+append_to_shell_profile() {
+  local content="$1"
+  local profile
+  profile=$(detect_shell_profile)
+
+  if ! grep -Fq "$content" "$profile"; then
+    echo "Appending to $profile..."
+    echo "$content" >> "$profile"
+  fi
+}
+
+# Install pyenv
+install_pyenv() {
+  if ! command -v pyenv &>/dev/null; then
+    echo "Installing pyenv..."
+    curl https://pyenv.run | bash
+  else
+    echo "pyenv already installed"
+  fi
+
+  append_to_shell_profile '
+# Pyenv setup
+export PYENV_ROOT="$HOME/.pyenv"
+export PATH="$PYENV_ROOT/bin:$PATH"
+
+if command -v pyenv 1>/dev/null 2>&1; then
+  eval "$(pyenv init --path)"
+  eval "$(pyenv virtualenv-init -)"
+fi
+'
+}
+
+# Install Poetry
+install_poetry() {
+  if ! command -v poetry &>/dev/null; then
+    echo "Installing Poetry..."
+    curl -sSL https://install.python-poetry.org | python3 -
+  else
+    echo "Poetry already installed"
+  fi
+
+  append_to_shell_profile 'export PATH="$HOME/.local/bin:$PATH"'
+}
+
+# Install uv
+install_uv() {
+  if ! command -v uv &>/dev/null; then
+    echo "Installing uv..."
+    curl -Ls https://astral.sh/uv/install.sh | bash
+  else
+    echo "uv already installed"
+  fi
+
+  append_to_shell_profile 'export PATH="$HOME/.local/bin:$PATH"'
+}
+install_rust() {
+  if ! command -v rustup &>/dev/null; then
+    echo "Installing Rust..."
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    source "$HOME/.cargo/env"
+  else
+    echo "Rust already installed"
+  fi
+
+  echo "Installing Rust 1.86.0..."
+  rustup install 1.86.0
+  rustup default 1.86.0
+
+  append_to_shell_profile 'source "$HOME/.cargo/env"'
+}
+
+install_go() {
+  if ! command -v go &>/dev/null || [[ "$(go version)" != *"go1.24.3"* ]]; then
+    echo "Installing Go 1.24.3..."
+    curl -LO "https://go.dev/dl/go1.24.3.linux-amd64.tar.gz"
+    sudo rm -rf /usr/local/go
+    sudo tar -C /usr/local -xzf go1.24.3.linux-amd64.tar.gz
+    rm go1.24.3.linux-amd64.tar.gz
+  else
+    echo "Go 1.24.3 already installed"
+  fi
+
+  append_to_shell_profile 'export PATH="/usr/local/go/bin:$PATH"'
+}
+install_sdkman_tools() {
+  if [ ! -d "$HOME/.sdkman" ]; then
+    echo "Installing SDKMAN..."
+    curl -s "https://get.sdkman.io" | bash
+    source "$HOME/.sdkman/bin/sdkman-init.sh"
+  else
+    echo "SDKMAN already installed"
+    source "$HOME/.sdkman/bin/sdkman-init.sh"
+  fi
+
+  echo "Installing pinned SDKMAN tools..."
+
+  sdk install java 21-tem
+  sdk default java 21-tem
+
+  sdk install scala 3.3.1
+  sdk default scala 3.3.1
+
+  sdk install sbt 1.10.11
+  sdk default sbt 1.10.11
+
+  sdk install gradle 8.4
+  sdk default gradle 8.4
+
+  append_to_shell_profile 'source "$HOME/.sdkman/bin/sdkman-init.sh"'
+}
+
+
+# Main dispatcher
+main() {
+  echo "Starting setup..."
+  install_pyenv
+  install_poetry
+  install_uv
+  install_rust
+  install_go
+  install_sdkman_tools
+  echo "✅ Done. Please run: source ~/.bashrc or source ~/.zshrc"
+}
+
+main "$@"
+
